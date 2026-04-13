@@ -383,3 +383,252 @@ A: (1) `claude` 실행 + 로그인, (2) `/init`으로 CLAUDE.md 자동 생성, (
 
 **Q45: 컨텍스트 윈도우가 가득 찼을 때 대처법은?**
 A: (1) `/compact <focus>`로 포커스 유지하며 압축, (2) `/clear`로 완전 리셋 후 더 나은 프롬프트로 재시작, (3) subagent로 탐색 위임, (4) `Esc+Esc`로 특정 지점에서 요약, (5) CLAUDE.md에 압축 시 보존할 내용 명시("When compacting, preserve...").
+
+---
+
+## 실무 워크플로우 CLI 치트시트
+
+업무에 바로 가져갈 수 있는 명령어들을 상황별로 정리했습니다.
+
+### 세션 관리
+
+```bash
+# 새 세션 시작
+claude
+
+# 이름 붙여서 시작 (나중에 재개 쉬움)
+claude -n "auth-refactor"
+
+# 가장 최근 세션 재개
+claude -c
+
+# 이름으로 세션 재개
+claude --resume auth-refactor
+
+# PR에 연결된 세션 재개
+claude --from-pr 123
+
+# 세션 분기 (원본 유지하고 다른 접근 시도)
+claude -c --fork-session
+```
+
+### 권한 모드 선택
+
+```bash
+# Plan Mode로 시작 (탐색/분석 전용)
+claude --permission-mode plan
+
+# 편집 자동 수락 (코드 반복 중 편리)
+claude --permission-mode acceptEdits
+
+# Auto Mode (장시간 작업, 프롬프트 피로 감소)
+claude --permission-mode auto
+
+# 세션 중 전환: Shift+Tab 반복
+```
+
+### 비대화형 모드 (CI/스크립트 통합)
+
+```bash
+# 일회성 쿼리
+claude -p "이 프로젝트의 구조를 설명해"
+
+# 구조화된 JSON 출력
+claude -p "모든 API 엔드포인트 나열" --output-format json
+
+# 스트리밍 출력 (실시간 처리)
+claude -p "로그 분석" --output-format stream-json
+
+# 파이프 입력
+cat error.log | claude -p "이 에러의 원인을 분석해"
+git diff main | claude -p "이 변경사항을 보안 관점에서 검토해"
+
+# 비용 제한
+claude -p "리팩토링" --max-budget-usd 5.00
+
+# 턴 수 제한
+claude -p "lint 에러 수정" --max-turns 10
+```
+
+### 프로젝트 초기 설정
+
+```bash
+# CLAUDE.md 자동 생성
+claude
+> /init
+
+# MCP 서버 추가 (예: GitHub)
+claude mcp add github -- npx -y @modelcontextprotocol/server-github
+
+# 설치된 에이전트 확인
+claude agents
+
+# 플러그인 설치 (예: 코드 인텔리전스)
+claude plugin install <plugin-name>
+```
+
+### 세션 내 슬래시 명령어 (자주 쓰는 것)
+
+```
+/init          # CLAUDE.md 자동 생성
+/memory        # CLAUDE.md 및 자동 메모리 보기/편집
+/compact       # 컨텍스트 압축
+/compact focus on API changes  # 포커스 지정 압축
+/clear         # 컨텍스트 완전 리셋
+/model         # 모델 전환 (Sonnet <-> Opus)
+/effort        # 사고 깊이 조절 (low/medium/high)
+/permissions   # 권한 허용/거부 관리
+/context       # 컨텍스트 윈도우 사용량 확인
+/agents        # 사용 가능한 subagent 보기
+/hooks         # 구성된 hooks 확인
+/mcp           # MCP 서버 상태 확인
+/doctor        # 설치 문제 진단
+/rename <name> # 세션 이름 변경
+/resume        # 다른 세션으로 전환
+/btw <질문>    # 사이드 질문 (컨텍스트 미소비)
+/plan          # 단일 요청에 대해 Plan Mode
+/vim           # Vim 편집 모드 토글
+/theme         # 테마 변경
+```
+
+### 키보드 단축키 (가장 유용한 것들)
+
+```
+Shift+Tab      # 권한 모드 순환
+Esc            # 현재 작업 중단
+Esc + Esc      # 되돌리기 메뉴 (코드/대화 복원)
+Ctrl+C         # 입력/생성 취소
+Ctrl+O         # 상세 출력 토글 (도구 사용 내용 보기)
+Ctrl+G         # 외부 텍스트 편집기에서 프롬프트 편집
+Ctrl+R         # 이전 명령 검색
+Ctrl+L         # 화면 다시 그리기
+Ctrl+T         # 작업 목록 토글
+Alt+P          # 모델 전환 (프롬프트 유지)
+Alt+T          # 확장 사고 토글
+Alt+O          # 빠른 모드 토글
+\+Enter        # 여러 줄 입력
+@파일경로       # 파일 참조 (자동완성)
+!명령어         # Bash 직접 실행
+```
+
+### 병렬 작업
+
+```bash
+# Git worktree로 병렬 세션
+claude -w feature-auth
+
+# Worktree + tmux 세션
+claude -w feature-auth --tmux
+
+# 추가 디렉토리 접근 허용
+claude --add-dir ../shared-lib ../common
+
+# 파일 대량 처리 (fan-out)
+for f in $(cat files.txt); do
+  claude -p "React->Vue 마이그레이션: $f" \
+    --allowedTools "Edit,Bash(git commit *)" &
+done
+wait
+```
+
+### 디버깅 & 트러블슈팅
+
+```bash
+# 설치 문제 진단
+claude
+> /doctor
+
+# 디버그 모드 (API, MCP 등 로그)
+claude --debug "api,mcp"
+
+# 디버그 로그를 파일로
+claude --debug-file /tmp/claude-debug.log
+
+# 자세한 출력
+claude --verbose
+
+# 인증 상태 확인
+claude auth status --text
+
+# 버전 확인
+claude -v
+```
+
+### 일상 워크플로우 원라이너
+
+```bash
+# 아침: 어제 PR 리뷰 확인
+claude -p "gh pr list --author @me 로 내 PR 상태 확인하고 리뷰 코멘트 요약해"
+
+# 버그 수정
+claude "이 에러 수정해: [에러 메시지]. src/auth/ 확인. 테스트 작성하고 실행까지"
+
+# 커밋 + PR
+claude "변경사항을 설명적 메시지로 커밋하고 PR 열어줘"
+
+# 코드 리뷰
+git diff main | claude -p "보안, 성능, 엣지 케이스 관점에서 리뷰해"
+
+# 테스트 추가
+claude "auth 모듈에 테스트 없는 함수 찾아서 테스트 작성하고 실행해"
+
+# 문서 동기화
+claude -p "코드 변경에 맞춰 README.md 업데이트해"
+
+# 종속성 감사
+claude -p "package.json의 deprecated 또는 취약한 종속성 확인해"
+```
+
+### 추천 `.claude/settings.json` 시작 템플릿
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test *)",
+      "Bash(npm run *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(gh *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [{
+      "matcher": "Edit|Write",
+      "hooks": [{
+        "type": "command",
+        "command": "jq -r '.tool_input.file_path' | xargs npx prettier --write 2>/dev/null || true"
+      }]
+    }]
+  }
+}
+```
+
+### 추천 CLAUDE.md 골격
+
+```markdown
+# 프로젝트명
+
+## 명령어
+- 빌드: `npm run build`
+- 테스트: `npm test`
+- 단일 테스트: `npm test -- --grep "테스트명"`
+- Lint: `npm run lint`
+
+## 규칙
+- TypeScript strict mode
+- named export만 사용 (default export 금지)
+- 테스트는 소스 옆에: `foo.ts` -> `foo.test.ts`
+- 커밋 전 반드시 `npm test` 실행
+
+## 아키텍처
+- API 핸들러: `src/api/handlers/`
+- 비즈니스 로직: `src/services/`
+- DB 모델: `src/models/`
+```
